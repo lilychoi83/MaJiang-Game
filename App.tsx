@@ -1139,11 +1139,11 @@ const App: React.FC = () => {
                                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                                    <h4 className="font-bold text-center mb-2 text-blue-800">완성형 예시 (14장)</h4>
                                    <div className="flex flex-wrap gap-2 justify-center">
-                                       <div className="flex gap-0.5"><MahjongTile tile="1만" size="xs"/><MahjongTile tile="2만" size="xs"/><MahjongTile tile="3만" size="xs"/></div>
-                                       <div className="flex gap-0.5"><MahjongTile tile="4통" size="xs"/><MahjongTile tile="5통" size="xs"/><MahjongTile tile="6통" size="xs"/></div>
-                                       <div className="flex gap-0.5"><MahjongTile tile="7삭" size="xs"/><MahjongTile tile="8삭" size="xs"/><MahjongTile tile="9삭" size="xs"/></div>
-                                       <div className="flex gap-0.5"><MahjongTile tile="발" size="xs"/><MahjongTile tile="발" size="xs"/><MahjongTile tile="발" size="xs"/></div>
-                                       <div className="flex gap-0.5 border-l border-slate-300 pl-2"><MahjongTile tile="중" size="xs"/><MahjongTile tile="중" size="xs"/></div>
+                                       <div className="flex gap-0.5"><MahjongTile tile={String.fromCodePoint(0x1F007)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F008)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F009)} size="xs"/></div>
+                                       <div className="flex gap-0.5"><MahjongTile tile={String.fromCodePoint(0x1F01C)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F01D)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F01E)} size="xs"/></div>
+                                       <div className="flex gap-0.5"><MahjongTile tile={String.fromCodePoint(0x1F016)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F017)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F018)} size="xs"/></div>
+                                       <div className="flex gap-0.5"><MahjongTile tile={String.fromCodePoint(0x1F005)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F005)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F005)} size="xs"/></div>
+                                       <div className="flex gap-0.5 border-l border-slate-300 pl-2"><MahjongTile tile={String.fromCodePoint(0x1F004)} size="xs"/><MahjongTile tile={String.fromCodePoint(0x1F004)} size="xs"/></div>
                                    </div>
                                    <p className="text-center text-xs text-blue-600 mt-2">몸통 4개 + 머리 1개</p>
                                </div>

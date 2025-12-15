@@ -1,7 +1,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AiAdvice } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Removed hardcoded initialization
+// const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); 
 
 const modelName = "gemini-2.5-flash";
 
@@ -25,7 +26,14 @@ const tileToKoreanName = (char: string): string => {
   return honorMap[code] || char;
 };
 
-export const getAiCoachAdvice = async (hand: string[], drawnTile: string | null): Promise<AiAdvice> => {
+export const getAiCoachAdvice = async (apiKey: string, hand: string[], drawnTile: string | null): Promise<AiAdvice> => {
+  if (!apiKey) {
+    throw new Error("API_KEY_MISSING");
+  }
+
+  // Initialize specifically for this request with the user's key
+  const ai = new GoogleGenAI({ apiKey });
+
   const fullHand = drawnTile ? [...hand, drawnTile] : hand;
   // Convert tiles to explicit text names to avoid AI confusion
   const handDescription = fullHand.map(tileToKoreanName).join(', ');
@@ -66,9 +74,21 @@ export const getAiCoachAdvice = async (hand: string[], drawnTile: string | null)
     return JSON.parse(text) as AiAdvice;
   } catch (error) {
     console.error("AI Error:", error);
-    return {
-      suggestion: "패 정리하기",
-      reason: "잠시 연결이 원활하지 않네요. 고립된 자패나 1, 9패부터 정리해보세요.",
-    };
+    throw error; // Re-throw to handle in UI
+  }
+};
+
+export const testGeminiConnection = async (apiKey: string): Promise<boolean> => {
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    // Minimal test call
+    await ai.models.generateContent({
+      model: modelName,
+      contents: "Hello",
+    });
+    return true;
+  } catch (e) {
+    console.error("Connection Test Failed:", e);
+    return false;
   }
 };

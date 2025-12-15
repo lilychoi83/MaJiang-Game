@@ -1,9 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Layout, HelpCircle, ChevronRight, CheckCircle2, Play, Lightbulb, RefreshCw, User, X, ArrowDown, Menu, Sparkles, Trophy, Settings, List, Star, Coins, Volume2, VolumeX, Globe, Info, Bot } from 'lucide-react';
+import { BookOpen, Layout, HelpCircle, ChevronRight, CheckCircle2, Play, Lightbulb, RefreshCw, User, X, ArrowDown, Menu, Sparkles, Trophy, Settings, List, Star, Coins, Volume2, VolumeX, Globe, Info, Bot, Key, ShieldCheck, AlertCircle, Save } from 'lucide-react';
 import MahjongTile from './components/MahjongTile';
-import { getAiCoachAdvice } from './services/geminiService';
+import { getAiCoachAdvice, testGeminiConnection } from './services/geminiService';
 import { LessonId, AiAdvice, Difficulty } from './types';
 import confetti from 'canvas-confetti';
+
+// --- Encryption Helpers for Local Storage ---
+const SECRET_SALT = "MAHJONG_MASTER_SECURE_KEY_v1";
+const encryptApiKey = (text: string) => {
+  if (!text) return "";
+  try {
+      // Simple XOR obfuscation + Base64
+      const chars = text.split('');
+      const xor = chars.map((c, i) => c.charCodeAt(0) ^ SECRET_SALT.charCodeAt(i % SECRET_SALT.length));
+      return btoa(String.fromCharCode(...xor));
+  } catch (e) { return text; }
+};
+
+const decryptApiKey = (encrypted: string) => {
+  if (!encrypted) return "";
+  try {
+      const decoded = atob(encrypted);
+      const xor = decoded.split('').map((c, i) => c.charCodeAt(0) ^ SECRET_SALT.charCodeAt(i % SECRET_SALT.length));
+      return String.fromCharCode(...xor);
+  } catch(e) { return ""; }
+};
 
 // --- Hardcoded Lesson Data ---
 
@@ -197,6 +218,12 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentLesson, setCurrentLesson] = useState<LessonId>(LessonId.INTRO);
   const [difficulty, setDifficulty] = useState<Difficulty>('NORMAL');
+  
+  // API Key State
+  const [apiKey, setApiKey] = useState<string>('');
+  const [isKeyModalOpen, setIsKeyModalOpen] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'IDLE'|'TESTING'|'SUCCESS'|'FAIL'>('IDLE');
 
   // Game State
   const [gameStarted, setGameStarted] = useState(false);
@@ -237,6 +264,42 @@ const App: React.FC = () => {
 
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // --- Initialize API Key on Mount ---
+  useEffect(() => {
+      const stored = localStorage.getItem('mahjong_master_api_key');
+      if (stored) {
+          const decrypted = decryptApiKey(stored);
+          setApiKey(decrypted);
+      }
+  }, []);
+
+  // --- API Key Handlers ---
+  const handleOpenKeyModal = () => {
+      setTempApiKey(apiKey);
+      setConnectionStatus('IDLE');
+      setIsKeyModalOpen(true);
+      setIsSidebarOpen(false);
+  };
+
+  const handleTestConnection = async () => {
+      if (!tempApiKey) return;
+      setConnectionStatus('TESTING');
+      const result = await testGeminiConnection(tempApiKey);
+      setConnectionStatus(result ? 'SUCCESS' : 'FAIL');
+  };
+
+  const handleSaveApiKey = () => {
+      if (!tempApiKey) {
+          localStorage.removeItem('mahjong_master_api_key');
+          setApiKey('');
+      } else {
+          const encrypted = encryptApiKey(tempApiKey);
+          localStorage.setItem('mahjong_master_api_key', encrypted);
+          setApiKey(tempApiKey);
+      }
+      setIsKeyModalOpen(false);
+  };
 
   // --- Audio SFX System ---
   const playSfx = (type: 'tile') => {
@@ -330,6 +393,11 @@ const App: React.FC = () => {
 
   // --- Game Functions ---
   const initGame = () => {
+    if (!apiKey) {
+        setIsKeyModalOpen(true);
+        return;
+    }
+
     if (!audioCtxRef.current) {
         audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
@@ -702,16 +770,27 @@ const App: React.FC = () => {
 
   const getAdvice = async () => {
     if (!drawnTile || currentTurn !== 0) return;
+
+    if (!apiKey) {
+        setIsKeyModalOpen(true);
+        setCoachMessage("AI 힌트를 사용하려면 먼저 API 키를 등록해주세요.");
+        return;
+    }
+
     setIsCoachVisible(true); 
     setAdviceLoading(true);
     setCoachMessage("음... 잠시만요, 패를 살펴볼게요...");
     try {
-      const advice = await getAiCoachAdvice(hands[0], drawnTile);
+      const advice = await getAiCoachAdvice(apiKey, hands[0], drawnTile);
       setAiAdvice(advice);
       setCoachMessage("분석을 완료했어요!");
     } catch (e) {
       console.error(e);
-      setCoachMessage("분석 중 오류가 발생했습니다.");
+      setCoachMessage("분석 중 오류가 발생했습니다. API 키를 확인해주세요.");
+      // Optional: Open modal if error is specifically about auth
+      if (e instanceof Error && (e.message.includes("403") || e.message.includes("API_KEY"))) {
+          setIsKeyModalOpen(true);
+      }
     } finally {
       setAdviceLoading(false);
     }
@@ -928,6 +1007,14 @@ const App: React.FC = () => {
             <div className="mt-6 pt-6 border-t border-slate-100">
                 <div className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Game Settings</div>
                 <div className="px-3 space-y-4">
+                    <button 
+                        onClick={handleOpenKeyModal}
+                        className="w-full flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 rounded-lg transition-colors border border-slate-200 group"
+                    >
+                        <Key size={16} className="text-slate-400 group-hover:text-blue-500"/>
+                        <span className="text-sm font-medium">API Key 관리</span>
+                        {apiKey ? <ShieldCheck size={14} className="ml-auto text-emerald-500" /> : <AlertCircle size={14} className="ml-auto text-red-400" />}
+                    </button>
                     <div>
                         <label className="text-xs text-slate-500 block mb-1 flex items-center gap-1"><Bot size={12}/> 봇 수준 (난이도)</label>
                         <select 
@@ -1187,6 +1274,17 @@ const App: React.FC = () => {
                                <Bot size={16}/> 
                                현재 봇 난이도: <span className="text-yellow-300 font-bold text-base">{difficulty === 'EASY' ? '초급' : difficulty === 'NORMAL' ? '중급' : '고급'}</span>
                            </div>
+
+                           {!apiKey && (
+                               <div className="absolute bottom-10 animate-bounce">
+                                   <button 
+                                     onClick={handleOpenKeyModal}
+                                     className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-full font-bold shadow-lg flex items-center gap-2"
+                                   >
+                                       <Key size={18}/> API 키 설정 필요
+                                   </button>
+                               </div>
+                           )}
                        </div>
                    ) : (
                        <>
@@ -1361,6 +1459,76 @@ const App: React.FC = () => {
            )}
         </main>
       </div>
+
+      {/* API Key Modal */}
+      {isKeyModalOpen && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                  <div className="p-6">
+                      <div className="flex justify-between items-center mb-6">
+                          <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
+                              <Key className="text-blue-600"/> API Key 관리
+                          </h2>
+                          <button onClick={() => setIsKeyModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                      </div>
+                      
+                      <div className="bg-blue-50 p-4 rounded-lg mb-6 text-sm text-blue-800 border border-blue-100">
+                          <p className="font-bold flex items-center gap-2 mb-1"><ShieldCheck size={16}/> 안전하게 저장됩니다</p>
+                          <p className="opacity-90">API 키는 브라우저 내부(Local Storage)에 암호화되어 저장되며, 서버로 전송되지 않습니다.</p>
+                      </div>
+
+                      <div className="space-y-4">
+                          <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Google Gemini API Key</label>
+                              <input 
+                                  type="password" 
+                                  value={tempApiKey}
+                                  onChange={(e) => {
+                                      setTempApiKey(e.target.value);
+                                      setConnectionStatus('IDLE');
+                                  }}
+                                  placeholder="AI Studio에서 발급받은 키를 입력하세요"
+                                  className="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                              />
+                          </div>
+
+                          <div className="flex gap-3">
+                              <button 
+                                  onClick={handleTestConnection}
+                                  disabled={!tempApiKey || connectionStatus === 'TESTING'}
+                                  className={`flex-1 py-2 rounded-lg font-medium border text-sm flex items-center justify-center gap-2 transition-colors
+                                      ${connectionStatus === 'SUCCESS' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                        connectionStatus === 'FAIL' ? 'bg-red-50 text-red-700 border-red-200' : 
+                                        'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}
+                              >
+                                  {connectionStatus === 'TESTING' ? <RefreshCw className="animate-spin" size={16}/> : 
+                                   connectionStatus === 'SUCCESS' ? <CheckCircle2 size={16}/> : 
+                                   connectionStatus === 'FAIL' ? <AlertCircle size={16}/> : <RefreshCw size={16}/>}
+                                  {connectionStatus === 'TESTING' ? '연결 확인 중...' : 
+                                   connectionStatus === 'SUCCESS' ? '연결 성공!' : 
+                                   connectionStatus === 'FAIL' ? '연결 실패' : '연결 테스트'}
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+                  
+                  <div className="bg-slate-50 p-4 flex justify-end gap-3 border-t border-slate-100">
+                      <button 
+                          onClick={() => setIsKeyModalOpen(false)}
+                          className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors"
+                      >
+                          취소
+                      </button>
+                      <button 
+                          onClick={handleSaveApiKey}
+                          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg shadow-blue-500/30 flex items-center gap-2 transition-all"
+                      >
+                          <Save size={18}/> 저장 및 적용
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

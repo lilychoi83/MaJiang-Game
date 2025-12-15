@@ -1,0 +1,7 @@
+{
+  "name": "Mahjong Master Class",
+  "description": "A beginner-friendly interactive guide to learning Mahjong, featuring visual lessons and AI-powered quizzes.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
